@@ -67,13 +67,8 @@ python path_finder.py baseline test/SA113_Media_SPE_MeOH_MS1_to_SA113_SPE_MeOH_M
 python path_finder.py curve test/SA113_Media_SPE_MeOH_MS1_to_SA113_SPE_MeOH_MS1_table.csv test/path_5_curve.txt 1e5 3 5 -infile_raw test/SA113_SPE_MeOH_MS1.mzTab -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN
 ```
 
-It takes around 15 minutes to run ```curve mode ``` on my PC.
-
 ## TOPPAS Run
 - Raw MS1 data to .mzTab file (for curve method input)
 ```
 ExecutePipeline.exe -in MS1mzTab.toppas -out_dir ./total_ion_curr/data/MS1
 ```
-## Update
-Previous path output in ```apex``` mode contains intervals with intensity equals zero. There intervals are not scheduled to be collected. For convenient, it is removed in this version.
-```manual.pdf``` provides some additional information.
