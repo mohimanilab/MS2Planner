@@ -49,16 +49,23 @@ def CentroidSampleControl(centers, intensity_threshold, intensity_ratio):
 def kNNCluster(data, centroid_dic, restriction):
     '''
     args:
-        data:
-        centroid_dic:
-        restriction:
+        data: <ndarray> shape = (n, 3)
+        centroid_dic: <dictionary> 
+                    key: (retention time, m/z); value: center index (start from 1)
+        restriction: <tuple> (rt_restriction, mz_restriction)
     return:
-        labels:
+        labels: <list>: len = number of data points.
+                labels[i] = a list of (rt, mz) within the restriction box of data i
     '''
+    # initialize all labels to be -1
     labels = [-1] * len(data)
+    # iterate through the dictionary
     for j in centroid_dic.keys():
+        # remove the data outside of the restriction box
         ind = np.where((data[:, 0] >= j[0]-restriction[0]) & (data[:, 0] <= j[0]+restriction[0])
                        & (data[:, 1] >= j[1]-restriction[1]) & (data[:, 1] <= j[1]+restriction[1]))
+        # if the label is -1 set it to [(rt, mz)]
+        # else append the (rt, mz) to the existing list
         for i in range(len(ind[0])):
             if labels[ind[0][i]] == -1:
                 labels[ind[0][i]] = [j]
@@ -68,9 +75,25 @@ def kNNCluster(data, centroid_dic, restriction):
 
 
 def kNN(data, labels, centroid_dic, restriction):
+    '''
+    args:
+        data: <ndarray> shape = (n, 3)
+        labels: <list>: len = number of data points.
+                labels[i] == a list of (rt, mz) within the restriction box of data i / 
+                labels[i] == -1
+        centroid_dic: <dictionary> 
+                    key: (retention time, m/z); value: center index (start from 1)
+        restriction: <tuple> (rt_restriction, mz_restriction)
+    return:
+        labels: <list>: len = number of data points.
+                labels[i] == j-th cluster of the data
+                labels[i] == -1 means it is out of all restriction box
+    '''
+    # compute distance of data to centroid, normalized by restriction
     def Dist(data, centroid, restriction):
         return (data[0] - centroid[0]) ** 2 + ((data[1] - centroid[1]) * (restriction[0] / restriction[1])) ** 2
 
+    # Do KNN clustering for each of the data point given the centers
     for i in range(len(data)):
         min_dist = float('inf')
         label_tmp = -1
@@ -161,26 +184,36 @@ def UpdateVar(data, Mu, W, Var_max):
 # --------------------------------------------------------------
 class Cluster:
     def __init__(self, node, num):
+        # initilize node in the clusters to a list
         self.nodes = [node]
+        # initilize intensity to be the intensity of init node
         self.intensity = node.intensity
+        # initilize number of nodes
         self.num = num
 
     def addNode(self, node):
+        # initilize number of nodes
         if node.cluster != self.num:
             logger.error("Node into different cluster")
+        # append nodes to the list
         self.nodes.append(node)
+        # add node intensity to the total cluster intensity
         self.intensity += node.intensity
 
 
 class Node:
     def __init__(self, rawSig, cluster, num):
+        # initialize rt, mz, intensity and which cluster it belongs to
         self.rt = rawSig[0]
+        # mz is the upper and lower bound
         self.mz = [rawSig[1], rawSig[1]]
         self.intensity = rawSig[2]
         self.cluster = cluster
+        # set number of data points in the node
         self.num = num
 
     def addRawSig(self, rawSig, cluster):
+        # add new data point to the node
         if rawSig[0] != self.rt:
             logger.error("Different rt, should not merge into same node")
         if cluster != self.cluster:
@@ -194,6 +227,7 @@ class Node:
         self.intensity += rawSig[2]
 
 
+# create a DAG to find minimum paths
 class Graph:
     def __init__(self, vertices, node_cluster):
         self.V = vertices
@@ -256,6 +290,18 @@ class Graph:
 # -------------------Other Helper Func--------------------------
 # --------------------------------------------------------------
 def NodeCreate(data, labels):
+    '''
+    args:
+        data: <numpy array> shape = (n,3)
+        labels: <list>: len = number of data points.
+                labels[i] == j-th cluster of the data
+                labels[i] == -1 means it is out of all restriction box
+    returns:
+        nodes: <list> a list of all Nodes 
+        num: number of nodes
+        node_cluster: <dictionary>
+                      key: node index; value: cluster index it belongs to
+    '''
     nodes = []
     rt_label_node_dic = {}
     node_cluster = {}
@@ -280,6 +326,20 @@ def NodeCreate(data, labels):
 
 
 def ClusterCreate(nodes, num_centers, int_max, num_node, min_scan, node_cluster):
+    '''
+    args:
+        nodes: <list> a list of all nodes (class node)
+        num_centers: <int> number of clusters
+        int_max: <float> maximum intensity
+        num_node: <int> number of nodes
+        min_scan: <float> minimum scan time between two clusters
+        node_cluster: <dictionary>
+                      key: node index; value: cluster index it belongs to
+    returns:
+        ret: 
+        num_node:
+        node_cluster:
+    '''
     clusters = [None] * num_centers
     num = 1
     for i in nodes:
@@ -304,6 +364,21 @@ def ClusterCreate(nodes, num_centers, int_max, num_node, min_scan, node_cluster)
 
 
 def EdgeCreate(clusters, int_max, num_node, delay, min_scan, max_scan):
+    '''
+    args:
+        clusters: <list> a list of clusters (class cluster)
+        int_max: <float> maximum intensity
+        num_node: <int> number of nodes
+        delay: <float> the minimum time required for instrument switching between features
+        min_scan: <float> the minimum scanning time for collecting one feature
+        max_scan: <float> the maximum scanning time for collecting one feature
+    return:
+        edges: <list>
+               edges[i] = [(start_node, end_node, weight)]
+               Due to implementation, weight = -1 is actually 1
+               with -1, we should find min length path
+               with 1, we should find max length path
+    '''
     edges = []
     # create weight 1 edges
     for i in clusters:
@@ -336,6 +411,17 @@ def EdgeCreate(clusters, int_max, num_node, delay, min_scan, max_scan):
 
 # Avoid resample same cluster
 def AddPrimeNode(num_node, edge, node_cluster):
+    '''
+    args:
+        num_node: <int> number of nodes
+        edges: <list>
+               edges[i] = [(start_node, end_node, weight)]
+        node_cluster: <dictionary>
+                      key: node index; value: cluster index it belongs to
+    return:
+        edges: <list>
+               edges[i] = [(start_node, end_node, weight)]
+    '''
     num_edge = len(edge)
     modified_node = {}
     for i in range(num_edge):
