@@ -336,9 +336,10 @@ def ClusterCreate(nodes, num_centers, int_max, num_node, min_scan, node_cluster)
         node_cluster: <dictionary>
                       key: node index; value: cluster index it belongs to
     returns:
-        ret: 
-        num_node:
-        node_cluster:
+        ret: clusters
+        num_node: number of nodes in the cluster
+        node_cluster: <dictionary>
+                      key: node index; value: cluster index it belongs to
     '''
     clusters = [None] * num_centers
     num = 1
@@ -442,6 +443,14 @@ def AddPrimeNode(num_node, edge, node_cluster):
 
 # Extract Path from ancestors
 def PathExtraction(dist, ancestors, num_node):
+    '''
+    args:
+        dist: <list> distance of the nodes
+        acestores: <list> ancestors of the nodes
+        num_node: <int> number of nodes / idx of the end node
+    return:
+        path: <list> path, start node->node1->node2->node3->...->end node
+    '''
     idx = ancestors[num_node]
     path = []
     while idx is not None and idx != 0:
@@ -454,6 +463,18 @@ def PathExtraction(dist, ancestors, num_node):
 
 # Map the path to index
 def IndexHis(path, num_node, nodes, center_intensity_rt_charge, node_cluster):
+    '''
+    args:
+        path: <list> path
+        num_node: <int> number of nodes
+        nodes: <list> list of nodes
+        center_intensity_rt_charge: <dictionary>
+                                    key: cluster idx; value: (intensity, rt, charge)
+        node_cluster: <dictionary>
+                      key: node index; value: cluster index it belongs to
+    return:
+        index_his: <list> [(rt_start, rt_end), (min_mz, max_mz), intensity, rt, charge]
+    '''
     index_his = []
     for i in path:
         if i[1] > num_node:
@@ -475,8 +496,20 @@ def IndexHis(path, num_node, nodes, center_intensity_rt_charge, node_cluster):
         )
     return index_his
 
+# remove clusters that have been collected
+
 
 def ClusterRemove(path, num_node, node_cluster, clusters):
+    '''
+    args:
+        path: <list> path
+        num_node: number of nodes
+        node_cluster: <dictionary>
+                      key: node index; value: cluster index it belongs to
+        clusters: <list> clusters
+    return:
+        newClusters: <list> clusters that have not been collected
+    '''
     ind = {}
     newClusters = []
     for i in range(len(path)):
@@ -489,6 +522,9 @@ def ClusterRemove(path, num_node, node_cluster, clusters):
 
 
 def WriteFile(file_name, indice_his, restriction, delay, isolation, min_time, max_time):
+    '''
+    write to path information to output file
+    '''
     restriction_rt = restriction[0]
     restriction_mz = restriction[1]
     text_file = open(file_name, "wt")
