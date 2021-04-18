@@ -21,7 +21,7 @@ Unit for retention time is second (sec) and mass-to-charge ratio is dalton (Da).
 - ```intensity_threshold```: threshold for feature filtering. Any sample features below this threshold will be removed.
 - ```intensity_ratio```: ratio threshold for feature filtering. Any sample features with sample_intensity / blank_intensity < ```intensity_ratio``` wil be removed.
 - ```num_path```: number of paths.
-- ```-infile_raw```: raw MS1 .mzML file (only include sample, no control), argument for ```curve``` mode. This file is generated from MS1mzTab.topppas. It contains three column: rt, mz and sample intensity.
+- ```-infile_raw```: raw MS1 .mzML file (only include sample, no control), argument for ```curve``` mode. File can be ```.mzML``` or ```.mzTab```
 - ```-intensity_accu```: the amount of intensity user wants to collect on a single feature, argument for ```apex``` and ```curve``` modes.
 - ```-win_len```: (second) rt window length in baseline mode, argument for ```baseline``` mode. 
 - ```-isolation```: (dalton) length of mass to charge isolation window, argument for all three modes.  
@@ -51,24 +51,31 @@ These numbers are separated by **space**. Different sampling position are separa
 
 ## Test
 - Generate .csv from ```convert_to_table```
-- Unzip the test data in ./test folder
+- Untar the test data in ./test folder
 - Run command line, parameters used for test are as follows
 ### Apex mode
 ```
-python path_finder.py apex test/SA113_Media_SPE_MeOH_MS1_to_SA113_SPE_MeOH_MS1_table.csv test/path_5_apex.txt 1e5 3 5 -intensity_accu 1e5 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3
+python3 path_finder.py apex test/Blank_to_Sample_mrgd.csv test/path_5_apex.txt 1e5 3 5 -intensity_accu 1e5 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3
 ```
 ### Baseline Mode
 ```
-python path_finder.py baseline test/SA113_Media_SPE_MeOH_MS1_to_SA113_SPE_MeOH_MS1_table.csv test/path_5_baseline.txt 1e5 3 5 -win_len 0.5 -isolation 1 -delay 0.2
+python3 path_finder.py baseline test/Blank_to_Sample_mrgd.csv test/path_5_baseline.txt 1e5 3 5 -win_len 0.5 -isolation 1 -delay 0.2
 ```
 
 ### Curve Mode
+Input raw feature can be in `.mzTab` format or `.mzML` format
 ```
-python path_finder.py curve test/SA113_Media_SPE_MeOH_MS1_to_SA113_SPE_MeOH_MS1_table.csv test/path_5_curve.txt 1e5 3 5 -infile_raw test/SA113_SPE_MeOH_MS1.mzTab -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN
+python3 path_finder.py curve test/Blank_to_Sample_mrgd.csv test/path_5_curve.txt 1e5 3 5 -infile_raw test/Sample.mzTab -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN
+```
+or 
+```
+python3 path_finder.py curve test/Blank_to_Sample_mrgd.csv test/path_5_curve.txt 1e5 3 5 -infile_raw test/Sample.mzML -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN
 ```
 
-## TOPPAS Run
-- Raw MS1 data to .mzTab file (for curve method input)
+## TOPPAS Run (optional)
+```.mzML``` file can directly parsed by the program (curve method).
+
+If you want to use ```.mzTab```:
 ```
 ExecutePipeline.exe -in MS1mzTab.toppas -out_dir ./total_ion_curr/data/MS1
 ```

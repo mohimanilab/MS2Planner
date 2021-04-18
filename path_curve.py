@@ -3,6 +3,7 @@ import operator
 import sys
 
 import numpy as np
+import pymzml
 from scipy.stats import multivariate_normal
 
 logger = logging.getLogger("path_finder.curve")
@@ -565,6 +566,26 @@ def WriteFile(file_name, indice_his, restriction, delay, isolation, min_time, ma
         n = text_file.write("\n")
     text_file.close()
 
+def mzml_parser(infile_raw):
+    '''
+    args: 
+        infile_raw <string>. Path_to_file of input
+    return:
+        data <ndarray>. Contains all MS1 features [rt, mz, intensity]
+    '''
+    parser = pymzml.run.Reader(infile_raw)
+    cnt = 0
+    for n, spec in enumerate(parser):
+        cnt += len(spec.mz)
+    data = np.zeros(shape=(cnt, 3))
+    idx = 0
+    for n, spec in enumerate(parser):
+        for j in range(len(spec.centroidedPeaks)):
+            data[idx, 0] = spec.scan_time[0] * 60.0
+            data[idx, 1] = spec.centroidedPeaks[j][0]
+            data[idx, 2] = spec.centroidedPeaks[j][1]
+            idx += 1
+    return data
 
 def PathGen(
     infile_raw,
@@ -584,10 +605,15 @@ def PathGen(
     Var_max = restriction[0]
 
     try:
-        data = np.genfromtxt(infile_raw, skip_header=12)
-        data = data[~np.isnan(data)]
-        data = data[np.nonzero(data)]
-        data = data.reshape(-1, 3)
+        if infile_raw.endswith(".mzTab"):
+            data = np.genfromtxt(infile_raw, skip_header=12)
+            data = data[~np.isnan(data)]
+            data = data[np.nonzero(data)]
+            data = data.reshape(-1, 3)
+        elif infile_raw.endswith(".mzML"):
+            data = mzml_parser(infile_raw)
+        else:
+            raise NotImplementedError
         centers = np.genfromtxt(infile_feature, delimiter=",", skip_header=1)
     except:
         logger.error("error in reading data from input file",
