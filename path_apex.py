@@ -1,18 +1,36 @@
 import logging
 
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger('path_finder.apex')
 
 # this function reads the apex file (.csv) and stores in a numpy array
 # first row is ignored
-def ReadFile(infile_name):
+
+
+def ReadFile(infile_name, sample_name, bg_name, suffix):
+    if sample_name is not None and bg_name is not None:
+        full_feat = pd.read_csv(infile_name)
+        sample_intensity_col = 'DATAFILE:'+sample_name+':'+suffix
+        background_intensity_col = 'DATAFILE:'+bg_name+':'+suffix
+        rt = np.array(full_feat['RT']).reshape(-1, 1)
+        mz = np.array(full_feat['m/z']).reshape(-1, 1)
+        charge = np.array(full_feat['Charge']).reshape(-1, 1)
+        sample_intensity = np.array(
+            full_feat[sample_intensity_col]).reshape(-1, 1)
+        bg_intensity = np.array(
+            full_feat[background_intensity_col]).reshape(-1, 1)
+
+        return np.hstack((mz, rt, charge, bg_intensity, sample_intensity))
     data = np.genfromtxt(infile_name, delimiter=",", skip_header=1)
     return data
 
+
 def DataFilter(data, intensity, intensity_ratio):
     data = data[data[:, 4] != 0]  # remove samples with intensity = 0
-    data = data[data[:, 4] >= intensity]  # remove samples with intensity < given
+    # remove samples with intensity < given
+    data = data[data[:, 4] >= intensity]
     data = data[
         data[:, 4] / (data[:, 3] + 1e-4) > intensity_ratio
     ]  # remove samples with intensity ratio < given
@@ -147,7 +165,8 @@ def PathGen(data, intensity_accu, num_path, delay, min_time, max_time):
     paths_mz = []
     paths_charge = []
     lengths = []
-    _, _, _, _, edge_intensity_dic = NodeEdge1Create(data, intensity_accu, delay, min_time, max_time)
+    _, _, _, _, edge_intensity_dic = NodeEdge1Create(
+        data, intensity_accu, delay, min_time, max_time)
     for i in range(num_path):
         num_node, rt_node_dic, node_rt_dic, edge, _ = NodeEdge1Create(
             data, intensity_accu, delay, min_time, max_time
@@ -161,7 +180,8 @@ def PathGen(data, intensity_accu, num_path, delay, min_time, max_time):
         length, ancestors = g.ShortestPath(s, t)
         if length >= 0:
             break
-        logger.info('[%d/%d]: features: %d, rest: %d' %(i+1,num_path,-length, len(data)))
+        logger.info('[%d/%d]: features: %d, rest: %d' %
+                    (i+1, num_path, -length, len(data)))
         lengths.append(-length)
         path_node = PathExtraction(ancestors)
         path_rt, path_mz, path_charge = PathRecoverToRT(
@@ -179,13 +199,15 @@ def WriteFile(
     outfile_name, paths_rt, paths_mz, paths_charge, edge_intensity_dic, isolation, delay, min_time, max_time
 ):
     if len(paths_rt) != len(paths_mz):
-        logger.error("length of rt and mz are not the same: rt %d, mz %d", len(paths_rt), len(paths_mz))
+        logger.error("length of rt and mz are not the same: rt %d, mz %d", len(
+            paths_rt), len(paths_mz))
         return
     text_file = open(outfile_name, "wt")
     for i in range(len(paths_rt)):
         n = text_file.write("path" + str(i) + "\t")
         if len(paths_rt[i]) != len(paths_mz[i]):
-            logger.error("length of rt and mz are not the same: rt %d, mz %d", len(paths_rt[i]), len(paths_mz[i]))
+            logger.error("length of rt and mz are not the same: rt %d, mz %d", len(
+                paths_rt[i]), len(paths_mz[i]))
             break
         for j in range(len(paths_rt[i])):
             mz_index = paths_mz[i][j]
@@ -200,7 +222,8 @@ def WriteFile(
                 if (start, stop) in edge_intensity_dic.keys():
                     intensity = edge_intensity_dic[(start, stop)]
                     if dur < min_time - 1e-4 or dur > max_time + 1e-4:
-                        logging.error("dur should not be < min scan time or > max scan time: %.4f", dur)
+                        logging.error(
+                            "dur should not be < min scan time or > max scan time: %.4f", dur)
                     n = text_file.write(
                         "{:.4f}".format(mz_index)
                         + " "

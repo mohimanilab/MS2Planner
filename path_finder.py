@@ -18,7 +18,8 @@ logger.setLevel(level=logging.INFO)
 # set up handler
 handler = logging.FileHandler('path_finder.log')
 handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -101,7 +102,23 @@ parser.add_argument(
     type=str,
     help="maximum scan time required (apex and curve mode)",
 )
+parser.add_argument(
+    "-sample",
+    type=str,
+    help="name for the sample (used for MZmine3 full feature table)",
+)
 
+parser.add_argument(
+    "-bg",
+    type=str,
+    help="name for the background sample (used for MZmine3 fulle feature table)",
+)
+
+parser.add_argument(
+    "-suffix",
+    type=str,
+    help="'Area' or 'Height' (used for MZmine3 fulle feature table)",
+)
 args = parser.parse_args()
 
 try:
@@ -111,15 +128,18 @@ try:
     intensity = args.intensity
     intensity_ratio = args.intensity_ratio
     num_path = args.num_path
-    isolation = args.isolation # all
-    intensity_accu = args.intensity_accu # curve and apex mode
-    delay = args.delay # all
-    window_len = args.win_len # baseline mode
-    infile_raw = args.infile_raw # curve mode
-    restriction = args.restriction # curve mode
-    min_scan = args.min_scan # curve and apex mode
-    max_scan = args.max_scan # curve and apex mode
-    cluster_mode = args.cluster # curve mode
+    isolation = args.isolation  # all
+    intensity_accu = args.intensity_accu  # curve and apex mode
+    delay = args.delay  # all
+    window_len = args.win_len  # baseline mode
+    infile_raw = args.infile_raw  # curve mode
+    restriction = args.restriction  # curve mode
+    min_scan = args.min_scan  # curve and apex mode
+    max_scan = args.max_scan  # curve and apex mode
+    cluster_mode = args.cluster  # curve mode
+    sample_name = args.sample  # all mode (optional for mzmine3)
+    bg_name = args.bg  # all mode (optional for mzmine3)
+    suffix = args.suffix  # all mode (optional for mzmine3)
 except:
     logger.error("error in parsing args", exc_info=sys.exc_info())
     sys.exit()
@@ -128,7 +148,8 @@ if mode == "apex":
     try:
         intensity_accu = np.exp(np.log(intensity_accu) + 2.5)
     except:
-        logger.error("intensity_accu argument is not valid", exc_info=sys.exc_info)
+        logger.error("intensity_accu argument is not valid",
+                     exc_info=sys.exc_info)
         sys.exit()
     if window_len is not None:
         logger.warning("win_len should not be input for apex mode")
@@ -140,7 +161,7 @@ if mode == "apex":
         logger.warning("restriction should not be input for apex mode")
 
     try:
-        data = apex.ReadFile(infile)
+        data = apex.ReadFile(infile, sample_name, bg_name, suffix)
     except:
         logger.error("error in reading data", exc_info=sys.exc_info())
         sys.exit()
@@ -169,7 +190,8 @@ if mode == "apex":
     logger.info("=============")
 
     try:
-        apex.WriteFile(outfile, paths_rt, paths_mz, paths_charge, edge_intensity_dic, isolation, delay, min_scan, max_scan)
+        apex.WriteFile(outfile, paths_rt, paths_mz, paths_charge,
+                       edge_intensity_dic, isolation, delay, min_scan, max_scan)
     except:
         logger.error("error in generating path", exc_info=sys.exc_info())
         sys.exit()
@@ -189,7 +211,7 @@ if mode == "baseline":
         logger.warning("max_scan should not be input for baseline mode")
 
     try:
-        data = baseline.ReadFile(infile)
+        data = baseline.ReadFile(infile, sample_name, bg_name, suffix)
     except:
         logger.error("error in reading data", exc_info=sys.exc_info())
         sys.exit()
@@ -227,7 +249,8 @@ if mode == "curve":
     try:
         intensity_accu = np.exp(np.log(intensity_accu) + 2.5)
     except:
-        logger.error("intensity_accu argument is not valid", exc_info=sys.exc_info)
+        logger.error("intensity_accu argument is not valid",
+                     exc_info=sys.exc_info)
         sys.exit()
     if window_len is not None:
         logger.warning("win_len should not be input for apex mode")
@@ -247,9 +270,13 @@ if mode == "curve":
         min_scan,
         max_scan,
         cluster_mode,
+        sample_name,
+        bg_name,
+        suffix,
     )
     try:
-        curve.WriteFile(outfile, indice_his, restriction, delay, isolation, min_scan, max_scan)
+        curve.WriteFile(outfile, indice_his, restriction,
+                        delay, isolation, min_scan, max_scan)
     except:
         logger.error("error in writing to output", exc_info=sys.exc_info())
         exit()

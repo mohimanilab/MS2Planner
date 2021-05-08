@@ -29,7 +29,12 @@ Unit for retention time is second (sec) and mass-to-charge ratio is dalton (Da).
 - ```-delay```: (second) the minimum rt requires swithching from one feature to the next, argument for all three modes.
 - ```-min_scan```: (second) minimum scan period in acquistion, argument for ```apex``` and ```curve``` mode.
 - ```-max_scan```: (second) maximum scan period in acquistion, argument for ```apex``` and ```curve``` mode.
-- ```-cluster```: clustering algorithm for ```curve``` mode. kNN and GMM are provided.
+- ```-cluster```: clustering algorithm for ```curve``` mode. kNN and GMM are provided (only kNN available now).
+- ```-sample```: <span style="color:red">name of the sample (used for mzmine3 full feature table)</span>
+- ```-bg```: <span style="color:red">name of the background sample (used for mzmine3 full feature table)</span>
+- ```-suffix```: <span style="color:red">name of the suffix of the name (Area or Height) (used for mzmine3 full feature table)</span>
+
+
 
 
 ## Output Format

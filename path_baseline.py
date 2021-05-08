@@ -2,21 +2,38 @@ import logging
 import sys
 
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger('path_finder.baseline')
 
-def ReadFile(infile_name):
+
+def ReadFile(infile_name, sample_name, bg_name, suffix):
+    if sample_name is not None and bg_name is not None:
+        full_feat = pd.read_csv(infile_name)
+        sample_intensity_col = 'DATAFILE:'+sample_name+':'+suffix
+        background_intensity_col = 'DATAFILE:'+bg_name+':'+suffix
+        rt = np.array(full_feat['RT']).reshape(-1, 1)
+        mz = np.array(full_feat['m/z']).reshape(-1, 1)
+        charge = np.array(full_feat['Charge']).reshape(-1, 1)
+        sample_intensity = np.array(
+            full_feat[sample_intensity_col]).reshape(-1, 1)
+        bg_intensity = np.array(
+            full_feat[background_intensity_col]).reshape(-1, 1)
+
+        return np.hstack((mz, rt, charge, bg_intensity, sample_intensity))
     data = np.genfromtxt(infile_name, delimiter=",", skip_header=1)
     return data
 
 
 def DataFilter(data, intensity, intensity_ratio):
     data = data[data[:, 4] != 0]  # remove samples with intensity = 0
-    data = data[data[:, 4] >= intensity]  # remove samples with intensity < given
+    # remove samples with intensity < given
+    data = data[data[:, 4] >= intensity]
     data = data[
-    data[:, 4] / (data[:, 3] + 1e-4) > intensity_ratio
+        data[:, 4] / (data[:, 3] + 1e-4) > intensity_ratio
     ]  # remove samples with intensity ratio < given
     return data
+
 
 def PathGen(data, window_len, num_path, iso, delay):
     window_len += delay
@@ -50,7 +67,7 @@ def PathGen(data, window_len, num_path, iso, delay):
                 path_features[i] += 1
             path.append(tmp)
         start = curr_end
-    
+
     for i in range(num_path):
         total_features -= path_features[i]
         logger.info(

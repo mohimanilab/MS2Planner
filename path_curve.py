@@ -3,6 +3,7 @@ import operator
 import sys
 
 import numpy as np
+import pandas as pd
 import pymzml
 from scipy.stats import multivariate_normal
 
@@ -566,6 +567,7 @@ def WriteFile(file_name, indice_his, restriction, delay, isolation, min_time, ma
         n = text_file.write("\n")
     text_file.close()
 
+
 def mzml_parser(infile_raw):
     '''
     args: 
@@ -587,6 +589,30 @@ def mzml_parser(infile_raw):
             idx += 1
     return data
 
+
+def parse_full_feat(infile_feature, sample_name, background_name, suffix):
+    '''
+    args:
+        infile_feature <string>: path to the feature table + file name
+        sample_name <string>: name of the sample used for mzmine3 full feature table
+        background_name <string>: name of the background used for mzmine3 full feature table
+        suffix  <string>: suffix of the name. Height or Area
+    return:
+        centers <ndarray>: shape = (num_feats, 5)
+        (mz, rt, charge, background_intensity, sample_intensity)
+    '''
+    full_feat = pd.read_csv(infile_feature)
+    sample_intensity_col = 'DATAFILE:'+sample_name+':'+suffix
+    background_intensity_col = 'DATAFILE:'+background_name+':'+suffix
+    rt = np.array(full_feat['RT']).reshape(-1, 1)
+    mz = np.array(full_feat['m/z']).reshape(-1, 1)
+    charge = np.array(full_feat['Charge']).reshape(-1, 1)
+    sample_intensity = np.array(full_feat[sample_intensity_col]).reshape(-1, 1)
+    bg_intensity = np.array(full_feat[background_intensity_col]).reshape(-1, 1)
+
+    return np.hstack((mz, rt, charge, bg_intensity, sample_intensity))
+
+
 def PathGen(
     infile_raw,
     infile_feature,
@@ -599,6 +625,9 @@ def PathGen(
     min_scan,
     max_scan,
     cluster_mode,
+    sample_name,
+    bg_name,
+    suffix,
 ):
     n_iter = 2
     Var_init = restriction[1]
@@ -614,6 +643,9 @@ def PathGen(
             data = mzml_parser(infile_raw)
         else:
             raise NotImplementedError
+        if sample_name is not None and bg_name is not None:
+            centers = parse_full_feat(
+                infile_feature, sample_name, bg_name, suffix)
         centers = np.genfromtxt(infile_feature, delimiter=",", skip_header=1)
     except:
         logger.error("error in reading data from input file",
