@@ -102,6 +102,7 @@ parser.add_argument(
     type=str,
     help="maximum scan time required (apex and curve mode)",
 )
+
 parser.add_argument(
     "-sample",
     type=str,
@@ -119,6 +120,7 @@ parser.add_argument(
     type=str,
     help="'Area' or 'Height' (used for MZmine3 fulle feature table)",
 )
+
 args = parser.parse_args()
 
 try:
@@ -137,9 +139,9 @@ try:
     min_scan = args.min_scan  # curve and apex mode
     max_scan = args.max_scan  # curve and apex mode
     cluster_mode = args.cluster  # curve mode
-    sample_name = args.sample  # all mode (optional for mzmine3)
-    bg_name = args.bg  # all mode (optional for mzmine3)
-    suffix = args.suffix  # all mode (optional for mzmine3)
+    sample_name = args.sample
+    bg_name = args.bg
+    suffix = args.suffix
 except:
     logger.error("error in parsing args", exc_info=sys.exc_info())
     sys.exit()
@@ -161,7 +163,8 @@ if mode == "apex":
         logger.warning("restriction should not be input for apex mode")
 
     try:
-        data = apex.ReadFile(infile, sample_name, bg_name, suffix)
+        data, rt_mz_feature = apex.ReadFile(
+            infile, sample_name, bg_name, suffix)
     except:
         logger.error("error in reading data", exc_info=sys.exc_info())
         sys.exit()
@@ -190,8 +193,12 @@ if mode == "apex":
     logger.info("=============")
 
     try:
-        apex.WriteFile(outfile, paths_rt, paths_mz, paths_charge,
-                       edge_intensity_dic, isolation, delay, min_scan, max_scan)
+        if sample_name is None and bg_name is None:
+            apex.WriteFile(outfile, paths_rt, paths_mz, paths_charge,
+                           edge_intensity_dic, isolation, delay, min_scan, max_scan)
+        else:
+            apex.WriteFileFormatted(outfile, paths_rt, paths_mz, paths_charge,
+                                    edge_intensity_dic, isolation, delay, min_scan, max_scan, rt_mz_feature)
     except:
         logger.error("error in generating path", exc_info=sys.exc_info())
         sys.exit()
@@ -211,7 +218,8 @@ if mode == "baseline":
         logger.warning("max_scan should not be input for baseline mode")
 
     try:
-        data = baseline.ReadFile(infile, sample_name, bg_name, suffix)
+        data, rt_mz_feature = baseline.ReadFile(
+            infile, sample_name, bg_name, suffix)
     except:
         logger.error("error in reading data", exc_info=sys.exc_info())
         sys.exit()
@@ -238,7 +246,10 @@ if mode == "baseline":
     logger.info("=============")
 
     try:
-        baseline.WriteFile(outfile, path, num_path)
+        if sample_name is None and bg_name is None:
+            baseline.WriteFile(outfile, path, num_path)
+        else:
+            baseline.WriteFileFormatted(outfile, path, num_path, rt_mz_feature)
     except:
         logger.error("error in generating path", exc_info=sys.exc_info())
         sys.exit()
@@ -275,8 +286,12 @@ if mode == "curve":
         suffix,
     )
     try:
-        curve.WriteFile(outfile, indice_his, restriction,
-                        delay, isolation, min_scan, max_scan)
+        if sample_name is None and bg_name is None:
+            curve.WriteFile(outfile, indice_his, restriction,
+                            delay, isolation, min_scan, max_scan)
+        else:
+            curve.WriteFileFormatted(outfile, indice_his, restriction,
+                                     delay, isolation, min_scan, max_scan)
     except:
         logger.error("error in writing to output", exc_info=sys.exc_info())
         exit()

@@ -10,7 +10,7 @@ from scipy.stats import multivariate_normal
 logger = logging.getLogger("path_finder.curve")
 
 
-def CentroidSampleControl(centers, intensity_threshold, intensity_ratio):
+def CentroidSampleControl(centers, intensity_threshold, intensity_ratio, feature_id):
     '''
     args:
         centers: <numpy array> shape = (n, 5). Columns are
@@ -35,12 +35,22 @@ def CentroidSampleControl(centers, intensity_threshold, intensity_ratio):
             centers[i, 4] / (centers[i, 3] + 1e-4) > intensity_ratio
         ):
             centroid_dic[(centers[i, 1], centers[i, 0])] = num_center
-            center_intensity_rt_charge[num_center] = (
-                centers[i, 4],
-                centers[i, 1],
-                centers[i, 2],
-            )
+            if feature_id is None:
+                center_intensity_rt_charge[num_center] = (
+                    centers[i, 4],
+                    centers[i, 1],
+                    centers[i, 2],
+                    i+1,
+                )
+            else:
+                center_intensity_rt_charge[num_center] = (
+                    centers[i, 4],
+                    centers[i, 1],
+                    centers[i, 2],
+                    feature_id[i, 0],
+                )
             num_center += 1
+
     return centroid_dic, num_center - 1, center_intensity_rt_charge
 
 # --------------------------------------------------------------
@@ -310,10 +320,10 @@ def NodeCreate(data, labels):
     node_index = {}
     num = 1
     for i in range(len(labels)):
-        if labels[i] != 0:
+        if labels[i] != -1:
             if (data[i, 0], labels[i]) not in rt_label_node_dic.keys():
                 rt_label_node_dic[(data[i, 0], labels[i])] = Node(
-                    data[i, :], labels[i], num
+                    data[i, :], labels[i], num,
                 )
                 node_cluster[num] = labels[i]
                 num += 1
@@ -471,7 +481,7 @@ def IndexHis(path, num_node, nodes, center_intensity_rt_charge, node_cluster):
         num_node: <int> number of nodes
         nodes: <list> list of nodes
         center_intensity_rt_charge: <dictionary>
-                                    key: cluster idx; value: (intensity, rt, charge)
+                                    key: cluster idx; value: (intensity, rt, charge, feature_id)
         node_cluster: <dictionary>
                       key: node index; value: cluster index it belongs to
     return:
@@ -494,6 +504,7 @@ def IndexHis(path, num_node, nodes, center_intensity_rt_charge, node_cluster):
                 intensity_rt_charge[0],
                 intensity_rt_charge[1],
                 intensity_rt_charge[2],
+                intensity_rt_charge[3],
             ]
         )
     return index_his
@@ -568,6 +579,40 @@ def WriteFile(file_name, indice_his, restriction, delay, isolation, min_time, ma
     text_file.close()
 
 
+def WriteFileFormatted(file_name, indice_his, restriction, delay, isolation, min_time, max_time):
+    restriction_rt = restriction[0]
+    restriction_mz = restriction[1]
+
+    paths, mzs, isos, starts, ends, ints, rts, charges, durs, feats = [
+    ], [], [], [], [], [], [], [], [], []
+    for i in range(len(indice_his)):
+        for j in range(len(indice_his[i])):
+            mz_index = (indice_his[i][j][1][0] + indice_his[i][j][1][1]) / 2.0
+            iso = max(indice_his[i][j][1][1] - mz_index, isolation)
+            start = indice_his[i][j][0][0]
+            end = indice_his[i][j][0][1]
+            intensity = indice_his[i][j][2]
+            rt = indice_his[i][j][3]
+            charge = indice_his[i][j][4]
+            feat = indice_his[i][j][5]
+            dur = end - start
+
+            paths.append(i)
+            mzs.append(mz_index)
+            isos.append(iso)
+            starts.append(start)
+            ends.append(end)
+            ints.append(intensity)
+            rts.append(rt)
+            charges.append(charge)
+            durs.append(dur)
+            feats.append(feat)
+    d = {'path': paths, 'ID': feats, 'Mass [m/z]': mzs, 'mz_isolation': isos, 'duration': durs,
+         'rt_start': starts, 'rt_end': ends, 'intensity': ints, 'rt_apex': rts, 'charge': charges}
+    df = pd.DataFrame(data=d)
+    df.to_csv(path_or_buf=file_name, index=False)
+
+
 def mzml_parser(infile_raw):
     '''
     args: 
@@ -600,6 +645,7 @@ def parse_full_feat(infile_feature, sample_name, background_name, suffix):
     return:
         centers <ndarray>: shape = (num_feats, 5)
         (mz, rt, charge, background_intensity, sample_intensity)
+        feature_id <ndarray> shape = (num_feats, 1)
     '''
     full_feat = pd.read_csv(infile_feature)
     sample_intensity_col = 'DATAFILE:'+sample_name+':'+suffix
@@ -607,10 +653,11 @@ def parse_full_feat(infile_feature, sample_name, background_name, suffix):
     rt = np.array(full_feat['RT']).reshape(-1, 1)
     mz = np.array(full_feat['m/z']).reshape(-1, 1)
     charge = np.array(full_feat['Charge']).reshape(-1, 1)
+    feature_id = np.array(full_feat['ID']).reshape(-1, 1)
     sample_intensity = np.array(full_feat[sample_intensity_col]).reshape(-1, 1)
     bg_intensity = np.array(full_feat[background_intensity_col]).reshape(-1, 1)
 
-    return np.hstack((mz, rt, charge, bg_intensity, sample_intensity))
+    return np.hstack((mz, rt, charge, bg_intensity, sample_intensity)), feature_id
 
 
 def PathGen(
@@ -643,10 +690,14 @@ def PathGen(
             data = mzml_parser(infile_raw)
         else:
             raise NotImplementedError
+
+        feature_id = None
         if sample_name is not None and bg_name is not None:
-            centers = parse_full_feat(
-                infile_feature, sample_name, bg_name, suffix)
-        centers = np.genfromtxt(infile_feature, delimiter=",", skip_header=1)
+            centers, feature_id = parse_full_feat(infile_feature, sample_name, bg_name,
+                                                  suffix)
+        else:
+            centers = np.genfromtxt(
+                infile_feature, delimiter=",", skip_header=1)
     except:
         logger.error("error in reading data from input file",
                      exc_info=sys.exc_info())
@@ -656,20 +707,16 @@ def PathGen(
         # First sort doesn't need to be stable.
         data = data[data[:, 1].argsort()]
         data = data[data[:, 0].argsort(kind="mergesort")]
-        # First sort doesn't need to be stable.
-        centers = centers[centers[:, 0].argsort()]
-        centers = centers[centers[:, 1].argsort(kind="mergesort")]
     except:
         logger.error("error is sorting data", exc_info=sys.exc_info())
         sys.exit()
-
     logger.info("=============")
     logger.info("File Read")
     logger.info("=============")
 
     try:
         centroid_dic, num_center, center_intensity_rt_charge = CentroidSampleControl(
-            centers, intensity_threshold, intensity_ratio
+            centers, intensity_threshold, intensity_ratio, feature_id,
         )
         if cluster_mode == "GMM":
             labels = GMMCluster(data, centroid_dic, restriction, True)
@@ -690,6 +737,7 @@ def PathGen(
     logger.info("Begin Finding Path")
     logger.info("=============")
     indice_his = []
+    feature_ids = []
     try:
         nodes, num_node, node_cluster = NodeCreate(
             data_clean, labels_clustered)

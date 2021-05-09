@@ -5,26 +5,26 @@ import pandas as pd
 
 logger = logging.getLogger('path_finder.apex')
 
-# this function reads the apex file (.csv) and stores in a numpy array
-# first row is ignored
-
 
 def ReadFile(infile_name, sample_name, bg_name, suffix):
     if sample_name is not None and bg_name is not None:
         full_feat = pd.read_csv(infile_name)
+        mz_feature_id = {}
         sample_intensity_col = 'DATAFILE:'+sample_name+':'+suffix
         background_intensity_col = 'DATAFILE:'+bg_name+':'+suffix
         rt = np.array(full_feat['RT']).reshape(-1, 1)
         mz = np.array(full_feat['m/z']).reshape(-1, 1)
         charge = np.array(full_feat['Charge']).reshape(-1, 1)
+        feature_id = np.array(full_feat['ID']).reshape(-1, 1)
         sample_intensity = np.array(
             full_feat[sample_intensity_col]).reshape(-1, 1)
         bg_intensity = np.array(
             full_feat[background_intensity_col]).reshape(-1, 1)
-
-        return np.hstack((mz, rt, charge, bg_intensity, sample_intensity))
+        for i in range(len(rt)):
+            mz_feature_id[mz[i, 0]] = feature_id[i, 0]
+        return np.hstack((mz, rt, charge, bg_intensity, sample_intensity)), mz_feature_id
     data = np.genfromtxt(infile_name, delimiter=",", skip_header=1)
-    return data
+    return data, None
 
 
 def DataFilter(data, intensity, intensity_ratio):
@@ -193,6 +193,39 @@ def PathGen(data, intensity_accu, num_path, delay, min_time, max_time):
         data = np.delete(data, RemoveVisited(path_node), axis=0)
 
     return paths_rt, paths_mz, paths_charge, edge_intensity_dic
+
+
+def WriteFileFormatted(file_name, paths_rt, paths_mz, paths_charge, edge_intensity_dic,
+                       isolation, delay, min_time, max_time, mz_feature_id):
+    paths, mzs, isos, starts, ends, ints, rts, charges, durs, feats = [
+    ], [], [], [], [], [], [], [], [], []
+    for i in range(len(paths_rt)):
+        for j in range(len(paths_rt[i])):
+            mz = paths_mz[i][j]
+            iso = isolation
+            start = paths_rt[i][j]
+            charge = paths_charge[i][j]
+            if j != len(paths_rt[i]) - 1:
+                stop = paths_rt[i][j + 1]
+                dur = stop - start - delay
+                intensity = 0
+                mid = (stop + start - delay) / 2.0
+                if (start, stop) in edge_intensity_dic.keys():
+                    intensity = edge_intensity_dic[(start, stop)]
+                    paths.append(i)
+                    mzs.append(mz)
+                    isos.append(iso)
+                    durs.append(dur)
+                    starts.append(start)
+                    ends.append(stop-delay)
+                    ints.append(intensity)
+                    rts.append(mid)
+                    charges.append(charge)
+                    feats.append(mz_feature_id[mzs[-1]])
+    d = {'path': paths, 'ID': feats, 'Mass [m/z]': mzs, 'mz_isolation': isos, 'duration': durs,
+         'rt_start': starts, 'rt_end': ends, 'intensity': ints, 'rt_apex': rts, 'charge': charges}
+    df = pd.DataFrame(data=d)
+    df.to_csv(path_or_buf=file_name, index=False)
 
 
 def WriteFile(

@@ -84,3 +84,15 @@ If you want to use ```.mzTab```:
 ```
 ExecutePipeline.exe -in MS1mzTab.toppas -out_dir ./total_ion_curr/data/MS1
 ```
+
+## Support for MZmine3
+```-sample```, ```-bg``` and ```-suffix``` are all **NECESSARY** for parsing MZmine3 full feature table. When these fields are not ```None```, MS2Planner will parse the full feature table and output the new-formatted path, otherwise output format is the original.
+
+Example
+```
+-sample Sample.mzML -bg Blank.mzML -suffix Area
+```
+The corresponding header of MZmine3 full feature table would be 
+```
+DATAFILE:Sample.mzML:Area   DATAFILE:Blank.mzML:Area
+```
