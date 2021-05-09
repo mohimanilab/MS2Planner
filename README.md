@@ -34,10 +34,19 @@ Unit for retention time is second (sec) and mass-to-charge ratio is dalton (Da).
 - ```-bg```: <span style="color:red">name of the background sample (used for mzmine3 full feature table)</span>
 - ```-suffix```: <span style="color:red">name of the suffix of the name (Area or Height) (used for mzmine3 full feature table)</span>
 
+## Support for MZmine3
+```-sample```, ```-bg``` and ```-suffix``` are all **NECESSARY** for parsing MZmine3 full feature table. When these fields are not ```None```, MS2Planner will parse the full feature table and output the new-formatted path, otherwise output format is the original. Since new output format is **comma separated**, .csv format is recommended for output (instead of .txt).
 
+Example
+```
+-sample Sample.mzML -bg Blank.mzML -suffix Area
+```
+The corresponding header of MZmine3 full feature table would be 
+```
+DATAFILE:Sample.mzML:Area   DATAFILE:Blank.mzML:Area
+```
 
-
-## Output Format
+## Output Format (old)
 ```
 path0 mz_center1 mz_isolation1 duration1 rt_start1 rt_end1 intensity1 apex_rt1 charge1 \t mz_center2 mz_center2 mz_window2 duration2 rt_start2 rt_end2 intensity2 apex_rt2 charge2...
 path1 mz_center1 mz_isolation1 duration1 rt_start1 rt_end1 intensity1 apex_rt1 charge1...
@@ -83,16 +92,4 @@ python3 path_finder.py curve test/Blank_to_Sample_mrgd.csv test/path_5_curve.txt
 If you want to use ```.mzTab```:
 ```
 ExecutePipeline.exe -in MS1mzTab.toppas -out_dir ./total_ion_curr/data/MS1
-```
-
-## Support for MZmine3
-```-sample```, ```-bg``` and ```-suffix``` are all **NECESSARY** for parsing MZmine3 full feature table. When these fields are not ```None```, MS2Planner will parse the full feature table and output the new-formatted path, otherwise output format is the original.
-
-Example
-```
--sample Sample.mzML -bg Blank.mzML -suffix Area
-```
-The corresponding header of MZmine3 full feature table would be 
-```
-DATAFILE:Sample.mzML:Area   DATAFILE:Blank.mzML:Area
 ```
