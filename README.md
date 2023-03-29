@@ -63,7 +63,7 @@ Each path contains a row in .txt file. Following by
 - ```apex_rt```: the retention time of the apex feature
 - ```charge```: charge of the apex feature
 
-These numbers are separated by **space**. Different sampling position are separated by **\t**. (i.e. ```rt_end1``` and ```mz_center2``` are separated by **\t**).
+These numbers are commas. Each target is on a new line. There is one file per path.
 
 ## Test
 - Generate .csv from ```convert_to_table```
