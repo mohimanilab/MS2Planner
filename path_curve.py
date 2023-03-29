@@ -758,37 +758,32 @@ def PathGen(
             centers, feature_id = parse_full_feat(infile_feature, sample_name, bg_name,
                                                   suffix, max_same_RT)
         else:
-            ##OLD CODE WORKS
             centers = np.genfromtxt(
                 infile_feature, delimiter=",", skip_header=1)
-            ## END OLD CODE
-            # Read the input feature file into an ndarray
-            centers = np.genfromtxt(infile_feature, delimiter=",", skip_header=1)
-
-            # Sort the ndarray by retention time and split it into subarrays with identical retention times
-            rt_indices = np.argsort(centers[:, 1])
-            split_indices = np.array_split(rt_indices, np.where(np.diff(centers[rt_indices, 1]))[0] + 1)
-
-            # Find the indices of the subarray entries with the largest sample intensity value and collect them into an array
-            # This selects the 3 features with the highest intensity for each subset with the same retention time
-            max_same_RT = np.array([np.argmax(centers[sort_ind, 4]) for sort_ind in split_indices])
-
-            # Use the indices of the maximum intensity features to create a boolean mask in rt_indices
-            # Store the number of features before filter
-            num_features_before_filter = centers.shape[0]
             
-            # Prepare Filter Mask to keep only the max_same_RT of features with the same RT and with the highest intensity
-            filter_mask = np.isin(rt_indices, max_same_RT)
+            print(f"Number of features before filter: {centers.shape[0]-1}")
+            # Group the rows by the first column value
+            groups = {}
+            for row in centers:
+                if row[0] not in groups:
+                    groups[row[0]] = []
+                groups[row[0]].append(row)
 
-            # Apply the filter mask to the centers ndarray
-            centers = centers[filter_mask]
+            # Sort the rows within each group by the last column value
+            for key in groups:
+                group = groups[key]
+                group.sort(key=lambda x: x[-1], reverse=True)
 
-            # Store the number of features after filter
-            num_features_after_filter = centers.shape[0]
+            # Select the top 3 rows with the highest value in the last column for each group
+            result = []
+            for key in groups:
+                group = groups[key][:max_same_RT]
+                result.extend(group)
+
+            centers = np.array(result)
 
             # Print the number of features before and after filter
-            print(f"Number of features before filter: {num_features_before_filter}")
-            print(f"Number of features after max_same_RT filter ("+str(max_same_RT)+"): {num_features_after_filter}")
+            print(f"Number of features after same_max_RT filter: {centers.shape[0]-1}")
             
     except:
         logger.error("error in reading data from input file",
