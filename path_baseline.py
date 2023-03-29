@@ -1,10 +1,10 @@
 import logging
 import sys
-
+import os
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger('path_finder.baseline')
+logger = logging.getLogger('MS2Planner.baseline')
 
 
 def ReadFile(infile_name, sample_name, bg_name, suffix):
@@ -70,43 +70,38 @@ def PathGen(data, window_len, num_path, iso, delay):
                 path_features[i] += 1
             path.append(tmp)
         start = curr_end
-
+    logger.info(
+        'Total number of features: '+str(total_features))
+    logger.info(
+        'Maximum number of iterative experiments: '+str(num_path))
     for i in range(num_path):
-        total_features -= path_features[i]
-        logger.info(
-            "[%d/%d]: features: %d, rest: %d"
-            % (i + 1, num_path, path_features[i], total_features)
-        )
+        if path_features[i] > 0:  # return only path that are are more than zero feature
+            total_features -= path_features[i]
+            logger.info(
+                "[%d/%d max]: features: %d, rest: %d"
+                % (i + 1, num_path, path_features[i], total_features)
+            )
+
     return path
 
-
 def WriteFile(outfile_name, path, num_path):
-    text_file = open(outfile_name, "wt")
+    #logger.info('WriteFile')
+    #logger.info(num_path)
     for i in range(num_path):
-        n = text_file.write("path" + str(i) + "\t")
-        for j in range(len(path)):
-            if i > len(path[j]) - 1:
-                continue
-            n = text_file.write(
-                "{:.4f}".format(path[j][i][0])
-                + " "
-                + "{:.4f}".format(path[j][i][1])
-                + " "
-                + "{:.4f}".format(path[j][i][2])
-                + " "
-                + "{:.4f}".format(path[j][i][3])
-                + " "
-                + "{:.4f}".format(path[j][i][4])
-                + " "
-                + "{:.4f}".format(path[j][i][5])
-                + " "
-                + "{:.4f}".format(path[j][i][6])
-                + " "
-                + str(path[j][i][7])
-                + "\t"
-            )
-        n = text_file.write("\n")
-    text_file.close()
+        file_path = outfile_name[:-4]+'_path_'+str(i+1)+'.csv'
+        with open(file_path, "wt", encoding='utf-8', newline='\n') as text_file:
+            n = text_file.write('Mass [m/z],mz_isolation,duration,rt_start,rt_end,intensity,rt_apex,charge\n')
+            for j in range(len(path)):
+                if i > len(path[j]) - 1:
+                    continue
+                n = text_file.write(str(path[j][i]).replace('(', '').replace(')', '') + "\n")
+        
+        # Check if the file has only one line and delete
+        with open(file_path, "rt", encoding="utf-8", newline="\n") as text_file:
+            lines = text_file.readlines()
+            if len(lines) == 1:
+                os.remove(file_path)
+
 
 
 def WriteFileFormatted(file_name, path, num_path, rt_mz_feature_id):
@@ -129,4 +124,4 @@ def WriteFileFormatted(file_name, path, num_path, rt_mz_feature_id):
     d = {'path': paths, 'ID': feats, 'Mass [m/z]': mzs, 'mz_isolation': isos, 'duration': durs,
          'rt_start': starts, 'rt_end': ends, 'intensity': ints, 'rt_apex': rts, 'charge': charges}
     df = pd.DataFrame(data=d)
-    df.to_csv(path_or_buf=file_name, index=False)
+    df.to_csv(path_or_buf=file_name, sep=',', index=True, encoding='ISO-8859-1')
