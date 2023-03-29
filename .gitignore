@@ -1,2 +1,6 @@
 .vscode/
 __pycache__/
+test/.DS_Store
+test/test_data/Blank_to_Sample_mrgd.csv
+test/test_data/Sample.mzML
+test/test_data/Sample.mzTab
