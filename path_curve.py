@@ -1,13 +1,15 @@
 import logging
 import operator
 import sys
-
+import os
 import numpy as np
 import pandas as pd
 import pymzml
 from scipy.stats import multivariate_normal
+import gc
 
-logger = logging.getLogger("path_finder.curve")
+
+logger = logging.getLogger("MS2Planner.curve")
 
 
 def CentroidSampleControl(centers, intensity_threshold, intensity_ratio, feature_id):
@@ -34,18 +36,25 @@ def CentroidSampleControl(centers, intensity_threshold, intensity_ratio, feature
         if (centers[i, 4] > intensity_threshold) and (
             centers[i, 4] / (centers[i, 3] + 1e-4) > intensity_ratio
         ):
-            centroid_dic[(centers[i, 1], centers[i, 0])] = num_center
+            # Round the retention time and m/z values to 2 decimal places
+            rt_rounded = round(centers[i, 1], 3)
+            intensity_rounded = round(centers[i, 4], 0)
+            mz_rounded = round(centers[i, 0], 4)
+            
+            # Use the rounded values as keys in the centroid_dic
+            centroid_dic[(rt_rounded, mz_rounded)] = num_center
+
             if feature_id is None:
                 center_intensity_rt_charge[num_center] = (
-                    centers[i, 4],
-                    centers[i, 1],
+                    intensity_rounded,
+                    rt_rounded,
                     centers[i, 2],
                     i+1,
                 )
             else:
                 center_intensity_rt_charge[num_center] = (
-                    centers[i, 4],
-                    centers[i, 1],
+                    intensity_rounded,
+                    rt_rounded,
                     centers[i, 2],
                     feature_id[i, 0],
                 )
@@ -194,50 +203,6 @@ def UpdateVar(data, Mu, W, Var_max):
 # --------------------------------------------------------------
 # ------------------------Class DEFs----------------------------
 # --------------------------------------------------------------
-class Cluster:
-    def __init__(self, node, num):
-        # initilize node in the clusters to a list
-        self.nodes = [node]
-        # initilize intensity to be the intensity of init node
-        self.intensity = node.intensity
-        # initilize number of nodes
-        self.num = num
-
-    def addNode(self, node):
-        # initilize number of nodes
-        if node.cluster != self.num:
-            logger.error("Node into different cluster")
-        # append nodes to the list
-        self.nodes.append(node)
-        # add node intensity to the total cluster intensity
-        self.intensity += node.intensity
-
-
-class Node:
-    def __init__(self, rawSig, cluster, num):
-        # initialize rt, mz, intensity and which cluster it belongs to
-        self.rt = rawSig[0]
-        # mz is the upper and lower bound
-        self.mz = [rawSig[1], rawSig[1]]
-        self.intensity = rawSig[2]
-        self.cluster = cluster
-        # set number of data points in the node
-        self.num = num
-
-    def addRawSig(self, rawSig, cluster):
-        # add new data point to the node
-        if rawSig[0] != self.rt:
-            logger.error("Different rt, should not merge into same node")
-        if cluster != self.cluster:
-            logger.error("Different cluster, should not merger into same node")
-
-        if rawSig[1] < self.mz[0]:
-            self.mz[0] = rawSig[1]
-        elif rawSig[1] > self.mz[1]:
-            self.mz[1] = rawSig[1]
-
-        self.intensity += rawSig[2]
-
 
 # create a DAG to find minimum paths
 class Graph:
@@ -296,6 +261,51 @@ class Graph:
                         ancestor[node] = i
 
         return dist, ancestor
+
+class Cluster:
+    def __init__(self, node, num):
+        # initilize node in the clusters to a list
+        self.nodes = [node]
+        # initilize intensity to be the intensity of init node
+        self.intensity = node.intensity
+        # initilize number of nodes
+        self.num = num
+
+    def addNode(self, node):
+        # initilize number of nodes
+        if node.cluster != self.num:
+            logger.error("Node into different cluster")
+        # append nodes to the list
+        self.nodes.append(node)
+        # add node intensity to the total cluster intensity
+        self.intensity += node.intensity
+
+
+class Node:
+    def __init__(self, rawSig, cluster, num):
+        # initialize rt, mz, intensity and which cluster it belongs to
+        self.rt = rawSig[0]
+        # mz is the upper and lower bound
+        self.mz = [rawSig[1], rawSig[1]]
+        self.intensity = rawSig[2]
+        self.cluster = cluster
+        # set number of data points in the node
+        self.num = num
+
+    def addRawSig(self, rawSig, cluster):
+        # add new data point to the node
+        if rawSig[0] != self.rt:
+            logger.error("Different rt, should not merge into same node")
+        if cluster != self.cluster:
+            logger.error("Different cluster, should not merger into same node")
+
+        if rawSig[1] < self.mz[0]:
+            self.mz[0] = rawSig[1]
+        elif rawSig[1] > self.mz[1]:
+            self.mz[1] = rawSig[1]
+
+        self.intensity += rawSig[2]
+
 
 
 # --------------------------------------------------------------
@@ -374,7 +384,6 @@ def ClusterCreate(nodes, num_centers, int_max, num_node, min_scan, node_cluster)
         i.nodes.sort(key=operator.attrgetter("rt"))
         ret.append(i)
     return ret, num_node, node_cluster
-
 
 def EdgeCreate(clusters, int_max, num_node, delay, min_scan, max_scan):
     '''
@@ -540,9 +549,10 @@ def WriteFile(file_name, indice_his, restriction, delay, isolation, min_time, ma
     '''
     restriction_rt = restriction[0]
     restriction_mz = restriction[1]
-    text_file = open(file_name, "wt")
     for i in range(len(indice_his)):
-        n = text_file.write("path" + str(i) + "\t")
+        file_path = file_name[:-4]+'_curve_path_'+str(i+1)+'.csv'
+        text_file = open(file_path, "wt", encoding='utf-8', newline='\n')
+        n = text_file.write('Mass [m/z],mz_isolation,duration,rt_start,rt_end,intensity,rt_apex,charge\n')
         for j in range(len(indice_his[i])):
             mz_index = (indice_his[i][j][1][0] + indice_his[i][j][1][1]) / 2.0
             iso = max(indice_his[i][j][1][1] - mz_index, isolation)
@@ -559,24 +569,27 @@ def WriteFile(file_name, indice_his, restriction, delay, isolation, min_time, ma
                 logger.error("Too long / short for scan period: dur %.4f", dur)
             n = text_file.write(
                 "{:.4f}".format(mz_index)
-                + " "
+                + ","
                 + "{:.4f}".format(iso)
-                + " "
+                + ","
                 + "{:.4f}".format(dur)
-                + " "
+                + ","
                 + "{:.4f}".format(start)
-                + " "
+                + ","
                 + "{:.4f}".format(end)
-                + " "
+                + ","
                 + "{:.4f}".format(intensity)
-                + " "
+                + ","
                 + "{:.4f}".format(rt)
-                + " "
+                + ","
                 + "{:.4f}".format(charge)
-                + "\t"
+                + "\n"
             )
-        n = text_file.write("\n")
-    text_file.close()
+        text_file.close()
+        with open(file_path, "rt", encoding="utf-8", newline="\n") as text_file:
+            lines = text_file.readlines()
+            if len(lines) == 1:
+                os.remove(file_path)
 
 
 def WriteFileFormatted(file_name, indice_his, restriction, delay, isolation, min_time, max_time):
@@ -663,6 +676,7 @@ def parse_full_feat(infile_feature, sample_name, background_name, suffix):
 def PathGen(
     infile_raw,
     infile_feature,
+    outfile,
     intensity_threshold,
     intensity_ratio,
     intensity_accu,
@@ -675,6 +689,7 @@ def PathGen(
     sample_name,
     bg_name,
     suffix,
+    isolation
 ):
     n_iter = 2
     Var_init = restriction[1]
@@ -748,16 +763,27 @@ def PathGen(
                      exc_info=sys.exc_info())
         sys.exit()
     try:
+        print('Start GenPath for each path')
         for i in range(num_path):
-            edges = EdgeCreate(
+            print('====== New path processed')
+            print('EdgeCreate')
+            edges_gen = EdgeCreate(
                 clusters, intensity_accu, num_node, delay, min_scan, max_scan
             )
-            edges = AddPrimeNode(num_node, edges, node_cluster)
+            print('AddPrimeNode')
+            edges_gen = AddPrimeNode(num_node, edges_gen, node_cluster)
             g = Graph(num_node * 2 + 2, node_cluster)
-            for j in edges:
+            print('addEdge')     ############ 
+            for j in edges_gen:   ##### CONSUME QUITE SOME MEMORY 5GB !!!!!
                 g.addEdge(j)
+                
+            # Free memory       
+            del edges_gen
+            gc.collect()
+
             s = 0
             t = num_node + 1
+            print('shortestPath') ############ ##### CONSUME MEMORY !!!!
             dist, ancestors = g.shortestPath(s, t)
             if dist[num_node + 1] >= 0:
                 break
@@ -765,14 +791,25 @@ def PathGen(
                 "[%d/%d]: features: %d, rest: %d"
                 % (i + 1, num_path, -dist[num_node + 1], len(clusters))
             )
+            print('PathExtraction')
             path = PathExtraction(dist, ancestors, num_node + 1)
             index_his = IndexHis(
                 path, num_node + 1, nodes, center_intensity_rt_charge, node_cluster
             )
             indice_his.append(index_his)
+
+            try:
+                if sample_name is None and bg_name is None:
+                    WriteFile(outfile, indice_his, restriction,
+                                    delay, isolation, min_scan, max_scan)
+            except:
+                logger.error("error in writing to output", exc_info=sys.exc_info())
+                exit()
+                
+            print('ClusterRemove')
             clusters = ClusterRemove(path, num_node, node_cluster, clusters)
     except:
         logger.error("error in finding paths", exc_info=sys.exc_info())
         sys.exit()
 
-    return indice_his
+    #return indice_his
