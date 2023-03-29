@@ -34,7 +34,7 @@ Unit for retention time is second (sec) and mass-to-charge ratio is dalton (Da).
 - ```-sample```: name of the sample (used for mzmine3 full feature table)
 - ```-bg```: name of the background sample (used for mzmine3 full feature table)
 - ```-suffix```:name of the suffix of the name (Area or Height) (used for mzmine3 full feature table)
-- ```-max_same_RT```: <span style="color:red"> Restrict the number of features with the same RT to that value. It will keep the most intense ones in the reference sample and will be used for mzTab and MZmine table.
+- ```-max_same_RT```: <span style="color:red"> Restrict the number of features with the same RT to that value. It will keep the most intense ones in the reference sample and will be used for the CSV table and MZmine table.
 
 ## Support for MZmine3
 ```-sample```, ```-bg``` and ```-suffix``` and ```-max_same_RT``` are all **NECESSARY** for parsing MZmine3 full feature table. When these fields are not ```None```, MS2Planner will parse the full feature table and output the new-formatted path, otherwise output format is the original. Since new output format is **comma separated**, .csv format is recommended for output (instead of .txt).
