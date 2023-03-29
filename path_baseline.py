@@ -35,23 +35,24 @@ def DataFilter_old(data, intensity, intensity_ratio):
     data = data[
         data[:, 4] / (data[:, 3] + 1e-4) > intensity_ratio
     ]  # remove samples with intensity ratio < given
+    print(data)
     return data
+
 
 def DataFilter(data, intensity, intensity_ratio, max_same_RT):
-    data = data[data[:, 4] != 0]  # remove samples with intensity = 0
-    # remove samples with intensity < given
-    data = data[data[:, 4] >= intensity]
-    data = data[
-        data[:, 4] / (data[:, 3] + 1e-4) > intensity_ratio
-    ]  # remove samples with intensity ratio < given
-
-    # Here we are limited the number of features with the exact same RT to max_same_RT
-    initial_nb_features = data.shape[0]-1
-    data = data.sort_values(by=['retention_time', 5], ascending=[True, False])
-    data = data.groupby('retention_time').head(max_same_RT)
-    afterfiltering_nb_features = data.shape[0]-1
+    df = pd.DataFrame(data)  # convert NumPy array to pandas DataFrame
+    df = df[df[4] != 0]  # remove samples with intensity = 0
+    df = df[df[4] >= intensity]  # remove samples with intensity < given
+    df = df[df[4] / (df[3] + 1e-4) > intensity_ratio]  # remove samples with intensity ratio < given
+          
+    # Here we are limiting the number of features with the exact same RT to max_same_RT
+    initial_nb_features = df.shape[0]-1
+    logger.info('   Initial number of features = '+str(initial_nb_features))
+    df = df.sort_values(by=[1, 4], ascending=[True, False])
+    df = df.groupby(1).head(max_same_RT)
+    afterfiltering_nb_features = df.shape[0]-1
     logger.info('   Remaining features = '+str(afterfiltering_nb_features)+' after same RT filtering with top '+str(max_same_RT))
-    return data
+    return df.values  # convert pandas DataFrame back to NumPy array
 
 
 def PathGen(data, window_len, num_path, iso, delay):
