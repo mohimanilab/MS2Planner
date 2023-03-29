@@ -12,11 +12,11 @@ import path_curve as curve
 sys.setrecursionlimit(10000)
 
 # set up log
-logger = logging.getLogger('path_finder')
+logger = logging.getLogger('MS2Planner')
 logger.setLevel(level=logging.INFO)
 
 # set up handler
-handler = logging.FileHandler('path_finder.log')
+handler = logging.FileHandler('MS2Planner.log')
 handler.setLevel(logging.INFO)
 formatter = logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -121,6 +121,12 @@ parser.add_argument(
     help="'Area' or 'Height' (used for MZmine3 fulle feature table)",
 )
 
+parser.add_argument(
+    "-max_same_RT",
+    type=int,
+    help="'# Here we limit the number of feature with the same RT to the value max_same_RT",
+)
+
 args = parser.parse_args()
 
 try:
@@ -142,6 +148,8 @@ try:
     sample_name = args.sample
     bg_name = args.bg
     suffix = args.suffix
+    max_same_RT = args.max_same_RT
+
 except:
     logger.error("error in parsing args", exc_info=sys.exc_info())
     sys.exit()
@@ -175,7 +183,7 @@ if mode == "apex":
     logger.info("=============")
 
     try:
-        data = apex.DataFilter(data, intensity, intensity_ratio)
+        data = apex.DataFilter(data, intensity, intensity_ratio, max_same_RT)
     except:
         logger.error("error in filtering data", exc_info=sys.exc_info())
         sys.exit()
@@ -230,7 +238,7 @@ if mode == "baseline":
     logger.info("=============")
 
     try:
-        data = baseline.DataFilter(data, intensity, intensity_ratio)
+        data = baseline.DataFilter(data, intensity, intensity_ratio, max_same_RT)
     except:
         logger.error("error in filtering data", exc_info=sys.exc_info())
         sys.exit()
@@ -247,6 +255,8 @@ if mode == "baseline":
 
     try:
         if sample_name is None and bg_name is None:
+            logger.info("Running WriteFile")
+            #logger.info(len(path))
             baseline.WriteFile(outfile, path, num_path)
         else:
             baseline.WriteFileFormatted(outfile, path, num_path, rt_mz_feature)
@@ -272,6 +282,7 @@ if mode == "curve":
     indice_his = curve.PathGen(
         infile_raw,
         infile,
+        outfile,
         intensity,
         intensity_ratio,
         intensity_accu,
@@ -284,16 +295,8 @@ if mode == "curve":
         sample_name,
         bg_name,
         suffix,
+        isolation, 
+        max_same_RT
     )
-    try:
-        if sample_name is None and bg_name is None:
-            curve.WriteFile(outfile, indice_his, restriction,
-                            delay, isolation, min_scan, max_scan)
-        else:
-            curve.WriteFileFormatted(outfile, indice_his, restriction,
-                                     delay, isolation, min_scan, max_scan)
-    except:
-        logger.error("error in writing to output", exc_info=sys.exc_info())
-        exit()
     logger.info("File Written")
     logger.info("=============")

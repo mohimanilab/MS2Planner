@@ -1,14 +1,15 @@
 # MS2Planner 
 
 ## Input
-It takes feature table generated from ```convert_to_table``` and raw signal .mzTab (curve mode) as input.
+It takes a `feature table` (*columns: Mass [m/z], retention_time, charge, Blank, Sample]* or a `MZmine3 feature table` resulting from the alignment of two samples (blank and reference samples) as well as the .mzML file for the reference sample for the curve mode.
 
 ## Output
-It outputs best paths in .txt format, path_finder.log is the log file.
+It outputs best paths in .txt format, `MS2Planner.log` is the log file.
+
 
 ## Run
 ```
-python path_finder.py mode infile outfile intensity_threshold intensity_ratio num_path -infile_raw -intensity_accu -win_len -isolation -restriction -delay -min_scan -max_scan
+python path_finder.py mode infile outfile intensity_threshold intensity_ratio num_path -infile_raw -intensity_accu -win_len -isolation -restriction -delay -min_scan -max_scan -max_same_RT 3
 ```
 Unit for retention time is second (sec) and mass-to-charge ratio is dalton (Da).
 
@@ -30,16 +31,17 @@ Unit for retention time is second (sec) and mass-to-charge ratio is dalton (Da).
 - ```-min_scan```: (second) minimum scan period in acquistion, argument for ```apex``` and ```curve``` mode.
 - ```-max_scan```: (second) maximum scan period in acquistion, argument for ```apex``` and ```curve``` mode.
 - ```-cluster```: clustering algorithm for ```curve``` mode. kNN and GMM are provided (only kNN available now).
-- ```-sample```: <span style="color:red">name of the sample (used for mzmine3 full feature table)</span>
-- ```-bg```: <span style="color:red">name of the background sample (used for mzmine3 full feature table)</span>
-- ```-suffix```: <span style="color:red">name of the suffix of the name (Area or Height) (used for mzmine3 full feature table)</span>
+- ```-sample```: name of the sample (used for mzmine3 full feature table)
+- ```-bg```: name of the background sample (used for mzmine3 full feature table)
+- ```-suffix```:name of the suffix of the name (Area or Height) (used for mzmine3 full feature table)
+- ```-max_same_RT```: <span style="color:red"> Restrict the number of features with the same RT to that value. It will keep the most intense ones in the reference sample and will be used for the CSV table and MZmine table.
 
 ## Support for MZmine3
-```-sample```, ```-bg``` and ```-suffix``` are all **NECESSARY** for parsing MZmine3 full feature table. When these fields are not ```None```, MS2Planner will parse the full feature table and output the new-formatted path, otherwise output format is the original. Since new output format is **comma separated**, .csv format is recommended for output (instead of .txt).
+```-sample```, ```-bg``` and ```-suffix``` and ```-max_same_RT``` are all **NECESSARY** for parsing MZmine3 full feature table. When these fields are not ```None```, MS2Planner will parse the full feature table and output the new-formatted path, otherwise output format is the original. Since new output format is **comma separated**, .csv format is recommended for output (instead of .txt).
 
 Example
 ```
--sample Sample.mzML -bg Blank.mzML -suffix Area
+-sample Sample.mzML -bg Blank.mzML -suffix Area -max_same_RT 3
 ```
 The corresponding header of MZmine3 full feature table would be 
 ```
@@ -61,29 +63,33 @@ Each path contains a row in .txt file. Following by
 - ```apex_rt```: the retention time of the apex feature
 - ```charge```: charge of the apex feature
 
-These numbers are separated by **space**. Different sampling position are separated by **\t**. (i.e. ```rt_end1``` and ```mz_center2``` are separated by **\t**).
+These numbers are commas. Each target is on a new line. There is one file per path.
 
 ## Test
 - Generate .csv from ```convert_to_table```
 - Untar the test data in ./test folder
 - Run command line, parameters used for test are as follows
+
 ### Apex mode
 ```
-python3 path_finder.py apex test/Blank_to_Sample_mrgd.csv test/path_5_apex.txt 1e5 3 5 -intensity_accu 1e5 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3
+python3 path_finder.py apex test/Blank_to_Sample_mrgd.csv test/path_5_apex.txt 1e5 3 5 -intensity_accu 1e5 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -max_same_RT 3
 ```
+
 ### Baseline Mode
 ```
-python3 path_finder.py baseline test/Blank_to_Sample_mrgd.csv test/path_5_baseline.txt 1e5 3 5 -win_len 0.5 -isolation 1 -delay 0.2
+python3 path_finder.py baseline test/Blank_to_Sample_mrgd.csv test/path_5_baseline.txt 1e5 3 5 -win_len 0.5 -isolation 1 -delay 0.2 -max_same_RT 3
 ```
 
 ### Curve Mode
 Input raw feature can be in `.mzTab` format or `.mzML` format
+
 ```
-python3 path_finder.py curve test/Blank_to_Sample_mrgd.csv test/path_5_curve.txt 1e5 3 5 -infile_raw test/Sample.mzTab -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN
+python3 path_finder.py curve test/Blank_to_Sample_mrgd.csv test/path_5_curve.txt 5e5 3 5 -infile_raw test/Sample.mzML -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN -max_same_RT 3
 ```
 or 
+
 ```
-python3 path_finder.py curve test/Blank_to_Sample_mrgd.csv test/path_5_curve.txt 1e5 3 5 -infile_raw test/Sample.mzML -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN
+python3 path_finder.py curve test/Blank_to_Sample_mrgd.csv test/path_5_curve.txt 5e5 3 5 -infile_raw test/Sample.mzTab -intensity_accu 1e5 -restriction 2 0.2 -isolation 1 -delay 0.2 -min_scan 0.2 -max_scan 3 -cluster kNN -max_same_RT 3
 ```
 
 ## TOPPAS Run (optional)
