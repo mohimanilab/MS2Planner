@@ -28,13 +28,29 @@ def ReadFile(infile_name, sample_name, bg_name, suffix):
     return data, None
 
 
-def DataFilter(data, intensity, intensity_ratio):
+def DataFilter_old(data, intensity, intensity_ratio):
     data = data[data[:, 4] != 0]  # remove samples with intensity = 0
     # remove samples with intensity < given
     data = data[data[:, 4] >= intensity]
     data = data[
         data[:, 4] / (data[:, 3] + 1e-4) > intensity_ratio
     ]  # remove samples with intensity ratio < given
+    return data
+
+def DataFilter(data, intensity, intensity_ratio, max_same_RT):
+    data = data[data[:, 4] != 0]  # remove samples with intensity = 0
+    # remove samples with intensity < given
+    data = data[data[:, 4] >= intensity]
+    data = data[
+        data[:, 4] / (data[:, 3] + 1e-4) > intensity_ratio
+    ]  # remove samples with intensity ratio < given
+
+    # Here we are limited the number of features with the exact same RT to max_same_RT
+    initial_nb_features = data.shape[0]-1
+    data = data.sort_values(by=['retention_time', 5], ascending=[True, False])
+    data = data.groupby('retention_time').head(max_same_RT)
+    afterfiltering_nb_features = data.shape[0]-1
+    logger.info('   Remaining features = '+str(afterfiltering_nb_features)+' after same RT filtering with top '+str(max_same_RT))
     return data
 
 

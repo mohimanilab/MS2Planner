@@ -648,7 +648,7 @@ def mzml_parser(infile_raw):
     return data
 
 
-def parse_full_feat(infile_feature, sample_name, background_name, suffix):
+def parse_full_feat_old(infile_feature, sample_name, background_name, suffix):
     '''
     args:
         infile_feature <string>: path to the feature table + file name
@@ -672,6 +672,46 @@ def parse_full_feat(infile_feature, sample_name, background_name, suffix):
 
     return np.hstack((mz, rt, charge, bg_intensity, sample_intensity)), feature_id
 
+def parse_full_feat(infile_feature, sample_name, background_name, suffix, max_same_RT):
+    '''
+    args:
+        infile_feature <string>: path to the feature table + file name
+        sample_name <string>: name of the sample used for mzmine3 full feature table
+        background_name <string>: name of the background used for mzmine3 full feature table
+        suffix  <string>: suffix of the name. Height or Area
+    return:
+        centers <ndarray>: shape = (num_feats, 5)
+        (mz, rt, charge, background_intensity, sample_intensity)
+        feature_id <ndarray> shape = (num_feats, 1)
+    '''
+    full_feat = pd.read_csv(infile_feature)
+    sample_intensity_col = 'DATAFILE:'+sample_name+':'+suffix
+    background_intensity_col = 'DATAFILE:'+background_name+':'+suffix
+    rt = np.array(full_feat['RT']).reshape(-1, 1)
+    mz = np.array(full_feat['m/z']).reshape(-1, 1)
+    charge = np.array(full_feat['Charge']).reshape(-1, 1)
+    feature_id = np.array(full_feat['ID']).reshape(-1, 1)
+    sample_intensity = np.array(full_feat[sample_intensity_col]).reshape(-1, 1)
+    bg_intensity = np.array(full_feat[background_intensity_col]).reshape(-1, 1)
+
+    # create a dataframe with the data
+    df = pd.DataFrame(np.hstack((mz, rt, charge, bg_intensity, sample_intensity)),
+                      columns=['mz', 'rt', 'charge', 'bg_intensity', 'sample_intensity'])
+    # sort by rt, then sample_intensity
+    df.sort_values(['rt', 'sample_intensity'], ascending=[True, False], inplace=True)
+    # group by rt and get the top max_same_RT most intense sample_intensity values
+    logger.info('   Initial number of features = '+str(df.shape))
+    df = df.groupby('rt').head(max_same_RT)
+    logger.info('   Remaining number of features = '+str(df.shape)+' after same RT filtering with top '+str(max_same_RT))
+
+    # convert to numpy arrays
+    mz = np.array(df['mz']).reshape(-1, 1)
+    rt = np.array(df['rt']).reshape(-1, 1)
+    charge = np.array(df['charge']).reshape(-1, 1)
+    bg_intensity = np.array(df['bg_intensity']).reshape(-1, 1)
+    sample_intensity = np.array(df['sample_intensity']).reshape(-1, 1)
+
+    return np.hstack((mz, rt, charge, bg_intensity, sample_intensity)), feature_id
 
 def PathGen(
     infile_raw,
@@ -689,7 +729,8 @@ def PathGen(
     sample_name,
     bg_name,
     suffix,
-    isolation
+    isolation,
+    max_same_RT
 ):
     n_iter = 2
     Var_init = restriction[1]
@@ -697,10 +738,42 @@ def PathGen(
 
     try:
         if infile_raw.endswith(".mzTab"):
+            ### OLD CODE WORKS####
+            #data = np.genfromtxt(infile_raw, skip_header=12)
+            ## Remove any rows with NaN values
+            #data = data[~np.isnan(data)]
+
+            # Remove any rows where intensity is equal to 0
+            #data = data[np.nonzero(data)]
+            ##Reshape
+            #data = data.reshape(-1, 3)
+            ### END OF OLD CODE ###
+
             data = np.genfromtxt(infile_raw, skip_header=12)
+            # Remove any rows with NaN values
             data = data[~np.isnan(data)]
+
+            # Remove any rows where intensity is equal to 0
             data = data[np.nonzero(data)]
+
+            # Reshape the data into columns for mz, rt, and intensity
             data = data.reshape(-1, 3)
+
+            # Find the indices of the top X most intense features for each "rt" value:
+            unique_vals, indices = np.unique(data[:, 1], return_inverse=True)
+            sorted_indices = np.argsort(data[:, 2])[::-1]
+            split_indices = np.split(sorted_indices, np.cumsum(np.unique(indices, return_counts=True)[1])[:-1])
+            max_same_RT = np.concatenate([sort_ind[:3] for sort_ind in split_indices])
+
+            # Filter out all but the top 3 most intense features for each "rt" value:
+            filter_mask = np.isin(np.arange(len(data)), max_same_RT)
+            before = data.shape[0]
+            data = data[filter_mask]
+            after = data.shape[0]
+            print(f'Number of features before filter: {before}')
+            print(f'Number of features after max_same_RT ('+str(max_same_RT)+') filter : {after}')
+
+
         elif infile_raw.endswith(".mzML"):
             data = mzml_parser(infile_raw)
         else:
@@ -709,7 +782,7 @@ def PathGen(
         feature_id = None
         if sample_name is not None and bg_name is not None:
             centers, feature_id = parse_full_feat(infile_feature, sample_name, bg_name,
-                                                  suffix)
+                                                  suffix, max_same_RT)
         else:
             centers = np.genfromtxt(
                 infile_feature, delimiter=",", skip_header=1)

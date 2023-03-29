@@ -121,6 +121,12 @@ parser.add_argument(
     help="'Area' or 'Height' (used for MZmine3 fulle feature table)",
 )
 
+parser.add_argument(
+    "-max_same_RT",
+    type=int,
+    help="'# Here we limit the number of feature with the same RT to the value max_same_RT",
+)
+
 args = parser.parse_args()
 
 try:
@@ -142,6 +148,8 @@ try:
     sample_name = args.sample
     bg_name = args.bg
     suffix = args.suffix
+    max_same_RT = args.max_same_RT
+
 except:
     logger.error("error in parsing args", exc_info=sys.exc_info())
     sys.exit()
@@ -175,7 +183,7 @@ if mode == "apex":
     logger.info("=============")
 
     try:
-        data = apex.DataFilter(data, intensity, intensity_ratio)
+        data = apex.DataFilter(data, intensity, intensity_ratio, max_same_RT)
     except:
         logger.error("error in filtering data", exc_info=sys.exc_info())
         sys.exit()
@@ -230,7 +238,7 @@ if mode == "baseline":
     logger.info("=============")
 
     try:
-        data = baseline.DataFilter(data, intensity, intensity_ratio)
+        data = baseline.DataFilter(data, intensity, intensity_ratio, max_same_RT)
     except:
         logger.error("error in filtering data", exc_info=sys.exc_info())
         sys.exit()
@@ -287,7 +295,8 @@ if mode == "curve":
         sample_name,
         bg_name,
         suffix,
-        isolation
+        isolation, 
+        max_same_RT
     )
     logger.info("File Written")
     logger.info("=============")
