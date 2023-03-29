@@ -1,9 +1,10 @@
 import logging
-
+import sys
+import os
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger('path_finder.apex')
+logger = logging.getLogger('MS2Planner.apex')
 
 
 def ReadFile(infile_name, sample_name, bg_name, suffix):
@@ -180,7 +181,7 @@ def PathGen(data, intensity_accu, num_path, delay, min_time, max_time):
         length, ancestors = g.ShortestPath(s, t)
         if length >= 0:
             break
-        logger.info('[%d/%d]: features: %d, rest: %d' %
+        logger.info('[%d/%d max]: features: %d, rest: %d' %
                     (i+1, num_path, -length, len(data)))
         lengths.append(-length)
         path_node = PathExtraction(ancestors)
@@ -235,9 +236,10 @@ def WriteFile(
         logger.error("length of rt and mz are not the same: rt %d, mz %d", len(
             paths_rt), len(paths_mz))
         return
-    text_file = open(outfile_name, "wt")
     for i in range(len(paths_rt)):
-        n = text_file.write("path" + str(i) + "\t")
+        file_path = outfile_name[:-4]+'_apex_path_'+str(i+1)+'.csv'
+        text_file = open(file_path, "wt", encoding='utf-8', newline='\n')
+        n = text_file.write('Mass [m/z],mz_isolation,duration,rt_start,rt_end,intensity,rt_apex,charge\n')
         if len(paths_rt[i]) != len(paths_mz[i]):
             logger.error("length of rt and mz are not the same: rt %d, mz %d", len(
                 paths_rt[i]), len(paths_mz[i]))
@@ -259,21 +261,24 @@ def WriteFile(
                             "dur should not be < min scan time or > max scan time: %.4f", dur)
                     n = text_file.write(
                         "{:.4f}".format(mz_index)
-                        + " "
+                        + ","
                         + "{:.4f}".format(iso)
-                        + " "
+                        + ","
                         + "{:.4f}".format(dur)
-                        + " "
+                        + ","
                         + "{:.4f}".format(start)
-                        + " "
+                        + ","
                         + "{:.4f}".format(stop - delay)
-                        + " "
+                        + ","
                         + "{:.4f}".format(intensity)
-                        + " "
+                        + ","
                         + "{:.4f}".format(mid)
-                        + " "
+                        + ","
                         + str(charge)
-                        + "\t"
+                        + "\n"
                     )
-        n = text_file.write("\n")
     text_file.close()
+    with open(file_path, "rt", encoding="utf-8", newline="\n") as text_file:
+        lines = text_file.readlines()
+        if len(lines) == 1:
+            os.remove(file_path)
